@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SetupVault</title>
+  <link rel="icon" href="data:,">
+  <link rel="preload" href="/archivo-variable.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#ruang-kerja">Lewati ke ruang kerja</a>
+  <header class="site-header">
+    <div class="shell header-inner">
+      <a class="brand" href="#cadangan"><span class="brand-mark" aria-hidden="true">SV</span> SetupVault</a>
+      <nav class="navigation" aria-label="Ruang kerja">
+        <a href="#cadangan" data-nav="cadangan" aria-current="page">Buat Cadangan</a>
+        <a href="#pulihkan" data-nav="pulihkan">Pulihkan</a>
+        <a href="#evaluasi" data-nav="evaluasi">Evaluasi</a>
+      </nav>
+      <span class="local"><span aria-hidden="true"></span> Berjalan lokal</span>
+    </div>
+  </header>
+  <div class="shell">
+    <main id="ruang-kerja" class="workspace" data-view="cadangan" tabindex="-1">
+      <section id="view-cadangan" aria-labelledby="backup-title">
+        <div class="intro">
+          <h1 id="backup-title" tabindex="-1">Buat cadangan</h1>
+          <p>Arsipkan satu versi setup ke tiga kartu sesi. Dua kartu dari paket yang sama cukup untuk memulihkannya.</p>
+        </div>
+        <form id="backup-form" class="panel">
+          <div class="panel-heading">
+            <h2>Berkas sumber</h2>
+            <button id="load-demo" class="button secondary" type="button">Muat demo SIM-03</button>
+          </div>
+          <fieldset id="backup-fields">
+            <legend class="sr-only">Berkas pencadangan</legend>
+            <label class="file-field file-main">
+              <span class="file-type">JSON</span>
+              <span class="file-text">
+                <strong>Konfigurasi mobil</strong>
+                <span class="file-meta"><span class="file-state">Belum dipilih</span><span class="file-name" data-file-for="source" hidden></span></span>
+              </span>
+              <input id="source" type="file" accept=".json,application/json" required aria-label="Konfigurasi JSON" aria-describedby="source-hint">
+              <span class="file-action" aria-hidden="true">Pilih JSON</span>
+            </label>
+            <p id="source-hint" class="hint">Berkas JSON hingga 65.536 byte.</p>
+            <details id="source-details" hidden>
+              <summary>Lihat JSON sumber</summary>
+              <pre id="source-preview" tabindex="0"></pre>
+            </details>
+            <div class="cover-heading">
+              <h3>Kartu sampul</h3>
+              <label class="button secondary batch-picker">
+                <span>Pilih 3 PNG sekaligus</span>
+                <input id="cover-batch" type="file" accept=".png,image/png" multiple aria-label="Pilih 3 PNG sekaligus" aria-describedby="cover-hint">
+              </label>
+            </div>
+            <div class="file-grid cover-grid">
+              <label class="file-field">
+                <span class="file-text"><strong>Sampul A</strong><span class="file-meta"><span class="file-state">Belum dipilih</span><span class="file-name" data-file-for="cover-a" hidden></span></span></span>
+                <input id="cover-a" type="file" accept=".png,image/png" required aria-label="Sampul A" aria-describedby="cover-hint">
+                <span class="file-action" aria-hidden="true">Pilih PNG</span>
+              </label>
+              <label class="file-field">
+                <span class="file-text"><strong>Sampul B</strong><span class="file-meta"><span class="file-state">Belum dipilih</span><span class="file-name" data-file-for="cover-b" hidden></span></span></span>
+                <input id="cover-b" type="file" accept=".png,image/png" required aria-label="Sampul B" aria-describedby="cover-hint">
+                <span class="file-action" aria-hidden="true">Pilih PNG</span>
+              </label>
+              <label class="file-field">
+                <span class="file-text"><strong>Sampul C</strong><span class="file-meta"><span class="file-state">Belum dipilih</span><span class="file-name" data-file-for="cover-c" hidden></span></span></span>
+                <input id="cover-c" type="file" accept=".png,image/png" required aria-label="Sampul C" aria-describedby="cover-hint">
+                <span class="file-action" aria-hidden="true">Pilih PNG</span>
+              </label>
+            </div>
+            <p id="cover-hint" class="hint">Gunakan PNG RGB 8-bit tanpa transparansi. Pilihan sekaligus mengisi A–C sesuai urutan nama berkas.</p>
+          </fieldset>
+          <div class="form-actions">
+            <button id="backup-button" class="button primary" type="submit">Buat 3 kartu cadangan</button>
+          </div>
+          <p id="backup-status" class="status" role="status" hidden></p>
+        </form>
+        <section id="backup-result" class="panel result" aria-labelledby="backup-result-title" hidden>
+          <div class="panel-heading">
+            <h2 id="backup-result-title">Kartu cadangan siap</h2>
+            <button id="use-pair" class="button secondary" type="button">Pilih kartu A + C</button>
+          </div>
+          <dl class="fingerprint">
+            <div><dt>ID paket</dt><dd id="backup-id"></dd></div>
+            <div><dt>SHA-256 sumber</dt><dd id="backup-digest"></dd></div>
+          </dl>
+          <div class="output-cards">
+            <a id="download-a" class="download" download><strong>Kartu A</strong><span>Unduh PNG</span></a>
+            <a id="download-b" class="download" download><strong>Kartu B</strong><span>Unduh PNG</span></a>
+            <a id="download-c" class="download" download><strong>Kartu C</strong><span>Unduh PNG</span></a>
+          </div>
+          <p class="hint">Bagikan berkas PNG asli kepada tiga pemegang. Saat mengirim lewat chat, pilih mode dokumen atau berkas agar piksel tetap utuh.</p>
+          <details id="comparison">
+            <summary>Bandingkan sampul dan kartu A</summary>
+            <div class="comparison-grid">
+              <figure><img id="before-image" alt="Sampul A sebelum penyisipan" loading="lazy"><figcaption>Sampul asli</figcaption></figure>
+              <figure><img id="after-image" alt="Kartu A sesudah penyisipan" loading="lazy"><figcaption>Sesudah penyisipan LSB</figcaption></figure>
+            </div>
+          </details>
+        </section>
+      </section>
+
+      <section id="view-pulihkan" aria-labelledby="restore-title" hidden>
+        <div class="intro">
+          <h1 id="restore-title" tabindex="-1">Pulihkan konfigurasi</h1>
+          <p>Ambil dua kartu dengan indeks berbeda dari paket yang sama. SetupVault memeriksa kartu sebelum menyusun kembali JSON.</p>
+        </div>
+        <form id="restore-form" class="panel">
+          <div class="panel-heading"><h2>Kartu cadangan</h2></div>
+          <fieldset id="restore-fields">
+            <legend class="sr-only">Dua kartu PNG untuk pemulihan</legend>
+            <div class="file-grid two">
+              <label class="file-field">
+                <span class="file-text"><strong>Kartu pertama</strong><span class="file-meta"><span class="file-state">Belum dipilih</span><span class="file-name" data-file-for="card-first" hidden></span></span></span>
+                <input id="card-first" type="file" accept=".png,image/png" required aria-label="Kartu pertama" aria-describedby="restore-hint">
+                <span class="file-action" aria-hidden="true">Pilih PNG</span>
+              </label>
+              <label class="file-field">
+                <span class="file-text"><strong>Kartu kedua</strong><span class="file-meta"><span class="file-state">Belum dipilih</span><span class="file-name" data-file-for="card-second" hidden></span></span></span>
+                <input id="card-second" type="file" accept=".png,image/png" required aria-label="Kartu kedua" aria-describedby="restore-hint">
+                <span class="file-action" aria-hidden="true">Pilih PNG</span>
+              </label>
+            </div>
+            <p id="restore-hint" class="hint">Pilih A + B, A + C, atau B + C dari satu ID paket.</p>
+          </fieldset>
+          <div class="form-actions">
+            <button id="restore-button" class="button primary" type="submit">Pulihkan JSON</button>
+          </div>
+          <p id="restore-status" class="status" role="status" hidden></p>
+        </form>
+        <section id="restore-result" class="panel result" aria-labelledby="restore-result-title" hidden>
+          <div class="panel-heading">
+            <h2 id="restore-result-title">Konfigurasi dipulihkan</h2>
+            <a id="download-json" class="button primary" download>Unduh JSON</a>
+          </div>
+          <p id="restore-proof" class="status" hidden></p>
+          <dl class="fingerprint">
+            <div><dt>Kartu lolos CRC32</dt><dd id="restored-pair"></dd></div>
+            <div><dt>ID paket</dt><dd id="restore-id"></dd></div>
+            <div><dt>SHA-256 hasil</dt><dd id="restore-digest"></dd></div>
+          </dl>
+          <pre id="restored-preview" aria-label="Isi JSON hasil pemulihan" tabindex="0"></pre>
+        </section>
+      </section>
+
+      <section id="view-evaluasi" aria-labelledby="eval-title" hidden>
+        <div class="intro">
+          <h1 id="eval-title" tabindex="-1">Evaluasi sistem</h1>
+          <p>Uji 10 ukuran JSON sintetis pada tiga kartu 512 × 512. Setiap ukuran dicoba lima kali dengan tiga pasangan pemulihan.</p>
+        </div>
+        <div class="panel eval-panel">
+          <div class="panel-heading">
+            <h2>Uji sampul Silverstone</h2>
+            <button id="run-evaluation" class="button primary" type="button">Jalankan evaluasi</button>
+          </div>
+          <p id="eval-status" class="status" role="status" hidden></p>
+          <div id="eval-result" hidden>
+            <div class="totals">
+              <div><strong id="total-success"></strong><span>Pemulihan identik</span></div>
+              <div><strong id="total-images"></strong><span>Pengukuran citra</span></div>
+              <div><strong id="total-rejections"></strong><span>Uji penolakan lolos</span></div>
+            </div>
+            <div class="table-top">
+              <h3>Rata-rata per ukuran</h3>
+              <a id="download-csv" class="button secondary" download="setupvault-evaluasi.csv">Unduh CSV</a>
+            </div>
+            <div class="table-scroll" tabindex="0" aria-label="Tabel metrik dapat digulir">
+              <table>
+                <thead><tr>
+                  <th scope="col">JSON (B)</th><th scope="col">Identik</th>
+                  <th scope="col">Cadang (ms)</th><th scope="col">Pulih (ms)</th>
+                  <th scope="col">MSE</th><th scope="col">PSNR (dB)</th><th scope="col">SSIM</th>
+                  <th scope="col">3 bagian (B)</th><th scope="col">3 PNG (B)</th>
+                </tr></thead>
+                <tbody id="metrics"></tbody>
+              </table>
+            </div>
+            <p class="hint">MSE, PSNR, dan SSIM membandingkan piksel sampul dan keluaran. Metrik ini mengukur kualitas visual.</p>
+            <h3>Validasi kartu</h3>
+            <ul id="eval-cases" class="case-list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <aside id="session-aside" aria-labelledby="aside-title">
+        <div class="aside-head">
+          <h2 id="aside-title">Kartu sesi contoh</h2>
+        </div>
+        <img id="session-preview" class="session-preview" alt="Kartu A sesi SIM-03 dengan peta Silverstone dan kondisi pengujian sintetis" width="512" height="512" hidden>
+        <p id="session-placeholder" class="session-placeholder">Memuat kartu SIM-03…</p>
+        <div class="aside-foot">
+          <p>5,891 km <span aria-hidden="true">/</span> 18 tikungan</p>
+          <button id="open-map" class="button secondary" type="button" aria-haspopup="dialog">Lihat peta</button>
+        </div>
+      </aside>
+    </main>
+    <footer class="footer"><span>SetupVault / CAPSTONE 2026</span><span>Kriptografi dan Keamanan Data</span></footer>
+  </div>
+  <dialog id="track-dialog" aria-labelledby="track-title">
+    <div class="track-header">
+      <div>
+        <h2 id="track-title">Silverstone</h2>
+        <p>Grand Prix Circuit <span aria-hidden="true">/</span> 5,891 km <span aria-hidden="true">/</span> 18 tikungan</p>
+      </div>
+      <div class="track-actions">
+        <button id="track-zoom" class="button secondary" type="button" aria-controls="track-viewport">Perbesar</button>
+        <form method="dialog"><button class="button secondary" type="submit" autofocus>Tutup</button></form>
+      </div>
+    </div>
+    <div id="track-viewport" class="track-viewport" tabindex="0" role="region" aria-label="Peta sirkuit">
+      <img id="track-image" width="1200" height="720" alt="Lintasan Silverstone Grand Prix dengan nomor tikungan 1–18, start dan finish, serta pit lane">
+    </div>
+    <ul class="track-legend" aria-label="Legenda peta">
+      <li>Lintasan utama</li><li>Start / finish</li><li>Pit lane</li>
+    </ul>
+  </dialog>
+</body>
+</html>
