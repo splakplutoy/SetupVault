@@ -7,6 +7,8 @@ const coverBatch = byId("cover-batch");
 const restoreInputs = ["card-first", "card-second"].map(byId);
 const sourceInput = byId("source");
 const workspace = byId("ruang-kerja");
+const demoSelect = byId("demo-circuit");
+const evalSelect = byId("eval-circuit");
 const jsonLimit = 65_536;
 const pngLimit = 13 * 1024 * 1024;
 const fileLabels = new Map(
@@ -16,8 +18,10 @@ const objectUrls = new WeakMap();
 const number = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 });
 const fileOrder = new Intl.Collator("id-ID", { numeric: true, sensitivity: "base" });
 const textDecoder = new TextDecoder("utf-8");
-let demoPromise;
-let lastBackup;
+const circuits = new Map();
+const demoPromises = new Map();
+const sourceDigests = new Map();
+let lastCards;
 
 function status(id, message = "", state = "info") {
   const element = byId(id);
@@ -136,24 +140,64 @@ coverBatch.addEventListener("change", () => {
   status("backup-status", "Sampul A, B, dan C diisi sesuai urutan nama berkas.", "good");
 });
 
-function loadDemo() {
-  demoPromise ??= api("demo").then(({ data, covers }) => ({
-    source: new File([bytesFromBase64(data)], "SIM-03-setup-v02.json", { type: "application/json" }),
-    covers: covers.map((cover, index) => new File(
-      [bytesFromBase64(cover)], `SIM-03-sampul-${letters[index]}.png`, { type: "image/png" },
-    )),
-  })).catch((error) => {
-    demoPromise = undefined;
-    throw error;
-  });
-  return demoPromise;
+function loadDemo(circuit) {
+  if (!demoPromises.has(circuit.id)) {
+    const prefix = `${circuit.id}-${circuit.session}`;
+    const version = String(circuit.version).padStart(2, "0");
+    const request = api(`demo?circuit=${encodeURIComponent(circuit.id)}`).then(({ data, covers }) => ({
+      source: new File([bytesFromBase64(data)], `${prefix}-setup-v${version}.json`, { type: "application/json" }),
+      covers: covers.map((cover, index) => new File(
+        [bytesFromBase64(cover)], `${prefix}-sampul-${letters[index]}.png`, { type: "image/png" },
+      )),
+    })).catch((error) => {
+      demoPromises.delete(circuit.id);
+      throw error;
+    });
+    demoPromises.set(circuit.id, request);
+  }
+  return demoPromises.get(circuit.id);
 }
 
-function displayDemoCard(demo) {
+function circuitStats(circuit) {
+  return `${circuit.length} km / ${circuit.turns} tikungan`;
+}
+
+function displayDemoCard(circuit, demo) {
   const preview = byId("session-preview");
   replaceUrl(preview, demo.covers[0], "src");
+  preview.alt = `Kartu A sesi ${circuit.session} dengan peta ${circuit.name} dan kondisi sintetis`;
   preview.hidden = false;
   byId("session-placeholder").hidden = true;
+}
+
+async function refreshDemoCircuit() {
+  const circuit = circuits.get(demoSelect.value);
+  const placeholder = byId("session-placeholder");
+  byId("load-demo").textContent = `Muat demo ${circuit.session}`;
+  byId("session-stats").textContent = circuitStats(circuit);
+  byId("open-map").disabled = false;
+  byId("session-preview").hidden = true;
+  placeholder.textContent = `Memuat kartu ${circuit.name}…`;
+  placeholder.hidden = false;
+  try {
+    const demo = await loadDemo(circuit);
+    if (demoSelect.value === circuit.id) displayDemoCard(circuit, demo);
+  } catch {
+    if (demoSelect.value === circuit.id) placeholder.textContent = "Kartu contoh belum dapat dimuat.";
+  }
+}
+
+async function initCircuits() {
+  const catalog = await api("circuits");
+  for (const circuit of catalog.circuits) circuits.set(circuit.id, circuit);
+  for (const select of [demoSelect, evalSelect]) {
+    select.replaceChildren(...catalog.circuits.map(({ id, name }) => new Option(name, id)));
+    select.value = catalog.default;
+    select.disabled = false;
+  }
+  byId("load-demo").disabled = false;
+  byId("run-evaluation").disabled = false;
+  await refreshDemoCircuit();
 }
 
 async function work(controlIds, statusId, message, operation) {
@@ -169,13 +213,23 @@ async function work(controlIds, statusId, message, operation) {
   }
 }
 
+demoSelect.addEventListener("change", () => {
+  refreshDemoCircuit();
+  if ([sourceInput, ...coverInputs].some((input) => input.files.length)) {
+    const { session } = circuits.get(demoSelect.value);
+    status("backup-status", `Klik Muat demo ${session} untuk mengganti JSON dan sampul yang terpilih.`);
+  }
+});
+
 byId("load-demo").addEventListener("click", () => {
-  work(["load-demo", "backup-button", "backup-fields"], "backup-status", "Memuat berkas demo…", async () => {
-    const demo = await loadDemo();
-    displayDemoCard(demo);
+  if (byId("backup-button").disabled) return;
+  const circuit = circuits.get(demoSelect.value);
+  work(["demo-circuit", "load-demo", "backup-button", "backup-fields"], "backup-status", "Memuat berkas demo…", async () => {
+    const demo = await loadDemo(circuit);
+    displayDemoCard(circuit, demo);
     setFile(sourceInput, demo.source);
     coverInputs.forEach((input, index) => setFile(input, demo.covers[index]));
-    status("backup-status", "Satu JSON dan tiga sampul SIM-03 siap.", "good");
+    status("backup-status", `Satu JSON dan tiga sampul ${circuit.session} siap.`, "good");
   });
 });
 
@@ -184,7 +238,9 @@ byId("backup-form").addEventListener("submit", (event) => {
   const source = sourceInput.files[0];
   const covers = coverInputs.map((input) => input.files[0]);
   byId("backup-result").hidden = true;
-  work(["backup-button", "load-demo", "backup-fields"], "backup-status", "Membuat tiga kartu PNG…", async () => {
+  const controls = ["backup-button", "backup-fields"];
+  if (circuits.size) controls.push("demo-circuit", "load-demo");
+  work(controls, "backup-status", "Membuat tiga kartu PNG…", async () => {
     const [data, ...encodedCovers] = await Promise.all([
       fileAsBase64(source, jsonLimit),
       ...covers.map((file) => fileAsBase64(file, pngLimit)),
@@ -194,7 +250,8 @@ byId("backup-form").addEventListener("submit", (event) => {
       [bytesFromBase64(card)], `SetupVault-${result.package.slice(0, 12)}-${letters[index]}.png`,
       { type: "image/png" },
     ));
-    lastBackup = { package: result.package, digest: result.digest, files };
+    lastCards = files;
+    sourceDigests.set(result.package, result.digest);
     byId("backup-id").textContent = result.package;
     byId("backup-digest").textContent = result.digest;
     files.forEach((file, index) => {
@@ -212,9 +269,9 @@ byId("backup-form").addEventListener("submit", (event) => {
 });
 
 byId("use-pair").addEventListener("click", () => {
-  if (!lastBackup) return;
-  setFile(restoreInputs[0], lastBackup.files[0]);
-  setFile(restoreInputs[1], lastBackup.files[2]);
+  if (!lastCards) return;
+  setFile(restoreInputs[0], lastCards[0]);
+  setFile(restoreInputs[1], lastCards[2]);
   location.hash = "pulihkan";
   showView();
   byId("restore-title").focus({ preventScroll: true });
@@ -230,19 +287,24 @@ byId("restore-form").addEventListener("submit", (event) => {
   work(["restore-button", "restore-fields"], "restore-status", "Mengekstrak dan memeriksa dua kartu…", async () => {
     const cards = await Promise.all(files.map((file) => fileAsBase64(file, pngLimit)));
     const result = await api("restore", { cards });
-    const samePackage = result.package === lastBackup?.package;
-    if (samePackage && result.digest !== lastBackup.digest) {
+    const sourceDigest = sourceDigests.get(result.package);
+    if (sourceDigest && result.digest !== sourceDigest) {
       throw new Error("SHA-256 hasil berbeda dari berkas sumber. Pemulihan dihentikan.");
     }
     const data = bytesFromBase64(result.data);
+    const preview = textDecoder.decode(data);
+    const { circuit } = JSON.parse(preview);
+    const circuitName = typeof circuit === "string" ? circuit.trim() : "";
+    byId("restored-circuit").textContent = circuitName;
+    byId("restored-circuit-row").hidden = !circuitName;
     byId("restore-id").textContent = result.package;
     byId("restore-digest").textContent = result.digest;
     byId("restored-pair").textContent = result.indices.map((index) => letters[index - 1]).join(" + ");
-    byId("restored-preview").textContent = textDecoder.decode(data);
+    byId("restored-preview").textContent = preview;
     const download = byId("download-json");
     replaceUrl(download, new Blob([data], { type: "application/json" }));
     download.download = `SetupVault-${result.package.slice(0, 12)}-pulih.json`;
-    status("restore-proof", samePackage ? "SHA-256 hasil cocok dengan berkas sumber." : "", "good");
+    status("restore-proof", sourceDigest ? "SHA-256 hasil cocok dengan berkas sumber." : "", "good");
     status("restore-status", "Dua kartu valid. Rekonstruksi selesai.", "good");
     byId("restore-result").hidden = false;
     byId("restore-result").scrollIntoView({ block: "nearest" });
@@ -291,11 +353,18 @@ function renderEvaluation(report) {
   byId("eval-result").hidden = false;
 }
 
-byId("run-evaluation").addEventListener("click", () => {
+evalSelect.addEventListener("change", () => {
   byId("eval-result").hidden = true;
-  work(["run-evaluation"], "eval-status", "Menjalankan 150 percobaan pemulihan dan 150 pengukuran citra…", async () => {
-    const report = await api("evaluate", {});
+  status("eval-status");
+});
+
+byId("run-evaluation").addEventListener("click", () => {
+  const circuit = circuits.get(evalSelect.value);
+  byId("eval-result").hidden = true;
+  work(["eval-circuit", "run-evaluation"], "eval-status", "Menjalankan 150 percobaan pemulihan dan 150 pengukuran citra…", async () => {
+    const report = await api("evaluate", { circuit: circuit.id });
     renderEvaluation(report);
+    byId("download-csv").download = `setupvault-evaluasi-${circuit.id}.csv`;
     const passed = report.rows.every((row) => row.successes === row.attempts)
       && report.scenarios.every((test) => test.pass !== false);
     status("eval-status", passed ? "Evaluasi selesai." : "Evaluasi selesai. Ada pengujian yang gagal.", passed ? "good" : "error");
@@ -307,8 +376,15 @@ const trackViewport = byId("track-viewport");
 const trackZoom = byId("track-zoom");
 
 byId("open-map").addEventListener("click", () => {
+  const circuit = circuits.get(demoSelect.value);
   const image = byId("track-image");
-  if (!image.hasAttribute("src")) image.src = "/silverstone-detail.png";
+  const timingLines = circuit.hasControlLine ? "garis start dan kontrol" : "start dan finish";
+  image.src = `/${encodeURIComponent(circuit.id)}-detail.png`;
+  image.alt = `Lintasan ${circuit.name} dengan nomor tikungan 1–${circuit.turns}, ${timingLines}, serta pit lane`;
+  byId("track-title").textContent = circuit.name;
+  byId("track-stats").textContent = `Grand Prix Circuit / ${circuitStats(circuit)}`;
+  byId("track-start-legend").textContent = circuit.hasControlLine ? "Start" : "Start / finish";
+  byId("track-control-legend").hidden = !circuit.hasControlLine;
   trackDialog.showModal();
 });
 
@@ -325,6 +401,14 @@ trackDialog.addEventListener("close", () => {
 
 window.addEventListener("hashchange", showView);
 showView();
-loadDemo().then(displayDemoCard).catch(() => {
-  byId("session-placeholder").textContent = "Kartu contoh belum dapat dimuat.";
-});
+if (location.protocol === "file:") {
+  byId("server-notice").hidden = false;
+  workspace.inert = true;
+  byId("session-placeholder").textContent = "Kartu contoh tersedia saat server berjalan.";
+} else {
+  initCircuits().catch(() => {
+    byId("server-notice").hidden = false;
+    byId("session-placeholder").textContent = "Daftar sirkuit belum dapat dimuat.";
+    status("eval-status", "Daftar sirkuit belum dapat dimuat. Muat ulang halaman.", "error");
+  });
+}

@@ -8,9 +8,10 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Timer
+from urllib.parse import parse_qs
 
+from circuits import CIRCUITS, DEFAULT_CIRCUIT, detail_png
 from evaluation import demo_material, evaluate
-from silverstone import detail_png
 from vault import MAX_JSON_BYTES, MAX_PNG_BYTES, VaultError, backup, digest, read_png, restore
 
 ROOT = Path(__file__).resolve().parent / "web"
@@ -20,6 +21,7 @@ ASSETS = {
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
     "/archivo-variable.ttf": ("archivo-variable.ttf", "font/ttf"),
 }
+TRACK_PATHS = {f"/{circuit_id}-detail.png": circuit_id for circuit_id in CIRCUITS}
 MAX_REQUEST_BYTES = 4 * (MAX_JSON_BYTES + 3 * MAX_PNG_BYTES) // 3 + 1024
 
 
@@ -65,6 +67,20 @@ def recover_backup(body):
     return {"package": package_id.hex(), "indices": indices, "digest": digest(data), "data": to_base64(data)}
 
 
+def circuit_catalog():
+    return {
+        "default": DEFAULT_CIRCUIT,
+        "circuits": [
+            {
+                "id": circuit_id, "name": circuit.name, "length": circuit.length,
+                "turns": len(circuit.turn_labels), "session": circuit.session,
+                "version": circuit.version, "hasControlLine": circuit.control_line is not None,
+            }
+            for circuit_id, circuit in CIRCUITS.items()
+        ],
+    }
+
+
 class SetupVaultHandler(BaseHTTPRequestHandler):
     def setup(self):
         super().setup()
@@ -96,16 +112,23 @@ class SetupVaultHandler(BaseHTTPRequestHandler):
         self.send_bytes(status, "application/json; charset=utf-8", json.dumps(result).encode("utf-8"))
 
     def do_GET(self):
+        path, _, query = self.path.partition("?")
         if not self.allowed_host():
             self.send_json(403, {"error": "Gunakan alamat lokal SetupVault."})
         elif self.path in ASSETS:
             filename, content_type = ASSETS[self.path]
             self.send_bytes(200, content_type, (ROOT / filename).read_bytes())
-        elif self.path == "/api/demo":
-            data, covers = demo_material()
+        elif self.path == "/api/circuits":
+            self.send_json(200, circuit_catalog())
+        elif path == "/api/demo":
+            selected = parse_qs(query, keep_blank_values=True).get("circuit", [DEFAULT_CIRCUIT])
+            if len(selected) != 1 or selected[0] not in CIRCUITS:
+                self.send_json(400, {"error": "Sirkuit tidak tersedia."})
+                return
+            data, covers = demo_material(selected[0])
             self.send_json(200, {"data": to_base64(data), "covers": [to_base64(cover) for cover in covers]})
-        elif self.path == "/silverstone-detail.png":
-            self.send_bytes(200, "image/png", detail_png())
+        elif self.path in TRACK_PATHS:
+            self.send_bytes(200, "image/png", detail_png(TRACK_PATHS[self.path]))
         else:
             self.send_json(404, {"error": "Halaman tidak ditemukan."})
 
@@ -129,7 +152,10 @@ class SetupVaultHandler(BaseHTTPRequestHandler):
             elif self.path == "/api/restore":
                 result = recover_backup(body)
             elif self.path == "/api/evaluate":
-                result = evaluate()
+                circuit_id = body.get("circuit", DEFAULT_CIRCUIT)
+                if not isinstance(circuit_id, str) or circuit_id not in CIRCUITS:
+                    raise VaultError("Sirkuit tidak tersedia.")
+                result = evaluate(circuit_id)
             else:
                 self.send_json(404, {"error": "Operasi tidak ditemukan."})
                 return

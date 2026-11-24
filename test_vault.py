@@ -1,5 +1,6 @@
 """Regression checks for byte-exact recovery and pixel preservation."""
 
+import json
 import unittest
 from itertools import combinations
 
@@ -43,6 +44,17 @@ class VaultTests(unittest.TestCase):
         data = b"\xef\xbb\xbf" + '{ "catatan" : "lintasan basah — tes" }\r\n'.encode()
         _, cards = backup(data, self.covers)
         self.assertEqual(restore(cards[:2])[2], data)
+
+    def test_monza_demo_restores_only_with_cards_from_its_package(self):
+        source, covers = demo_material("monza")
+        config = json.loads(source)
+        self.assertEqual((config["circuit"], config["session"], config["version"]), ("Monza", "SIM-04", 1))
+        self.assertNotEqual(config["setup"], json.loads(self.source)["setup"])
+        package, cards = backup(source, [read_png(cover) for cover in covers])
+        self.assertEqual(restore([cards[0], cards[2]])[::2], (package, source))
+        _, silverstone_cards = backup(self.source, self.covers)
+        with self.assertRaisesRegex(VaultError, "ID paket berbeda"):
+            restore([cards[0], silverstone_cards[2]])
 
 
 if __name__ == "__main__":

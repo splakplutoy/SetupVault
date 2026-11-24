@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SetupVault</title>
   <link rel="icon" href="data:,">
-  <link rel="preload" href="/archivo-variable.ttf" as="font" type="font/ttf" crossorigin>
-  <link rel="stylesheet" href="/style.css">
-  <script src="/app.js" defer></script>
+  <link rel="preload" href="./archivo-variable.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="./style.css">
+  <script src="./app.js" defer></script>
 </head>
 <body>
   <a class="skip" href="#ruang-kerja">Lewati ke ruang kerja</a>
@@ -23,6 +23,7 @@
     </div>
   </header>
   <div class="shell">
+    <p id="server-notice" class="status" data-state="error" role="alert" hidden>Untuk memakai SetupVault, jalankan Start-SetupVault.cmd dan buka tab yang dibukakan oleh server lokal.</p>
     <main id="ruang-kerja" class="workspace" data-view="cadangan" tabindex="-1">
       <section id="view-cadangan" aria-labelledby="backup-title">
         <div class="intro">
@@ -32,7 +33,11 @@
         <form id="backup-form" class="panel">
           <div class="panel-heading">
             <h2>Berkas sumber</h2>
-            <button id="load-demo" class="button secondary" type="button">Muat demo SIM-03</button>
+            <div class="circuit-actions">
+              <label for="demo-circuit">Sirkuit demo</label>
+              <select id="demo-circuit" class="circuit-select" disabled><option>Memuat…</option></select>
+              <button id="load-demo" class="button secondary" type="button" disabled>Muat demo</button>
+            </div>
           </div>
           <fieldset id="backup-fields">
             <legend class="sr-only">Berkas pencadangan</legend>
@@ -141,6 +146,7 @@
           </div>
           <p id="restore-proof" class="status" hidden></p>
           <dl class="fingerprint">
+            <div id="restored-circuit-row" hidden><dt>Sirkuit dari JSON</dt><dd id="restored-circuit"></dd></div>
             <div><dt>Kartu lolos CRC32</dt><dd id="restored-pair"></dd></div>
             <div><dt>ID paket</dt><dd id="restore-id"></dd></div>
             <div><dt>SHA-256 hasil</dt><dd id="restore-digest"></dd></div>
@@ -156,8 +162,12 @@
         </div>
         <div class="panel eval-panel">
           <div class="panel-heading">
-            <h2>Uji sampul Silverstone</h2>
-            <button id="run-evaluation" class="button primary" type="button">Jalankan evaluasi</button>
+            <h2>Uji sampul</h2>
+            <div class="circuit-actions">
+              <label for="eval-circuit">Sirkuit sampul</label>
+              <select id="eval-circuit" class="circuit-select" disabled><option>Memuat…</option></select>
+              <button id="run-evaluation" class="button primary" type="button" disabled>Jalankan evaluasi</button>
+            </div>
           </div>
           <p id="eval-status" class="status" role="status" hidden></p>
           <div id="eval-result" hidden>
@@ -192,11 +202,11 @@
         <div class="aside-head">
           <h2 id="aside-title">Kartu sesi contoh</h2>
         </div>
-        <img id="session-preview" class="session-preview" alt="Kartu A sesi SIM-03 dengan peta Silverstone dan kondisi pengujian sintetis" width="512" height="512" hidden>
-        <p id="session-placeholder" class="session-placeholder">Memuat kartu SIM-03…</p>
+        <img id="session-preview" class="session-preview" alt="" width="512" height="512" hidden>
+        <p id="session-placeholder" class="session-placeholder">Memuat kartu contoh…</p>
         <div class="aside-foot">
-          <p>5,891 km <span aria-hidden="true">/</span> 18 tikungan</p>
-          <button id="open-map" class="button secondary" type="button" aria-haspopup="dialog">Lihat peta</button>
+          <p id="session-stats"></p>
+          <button id="open-map" class="button secondary" type="button" aria-haspopup="dialog" disabled>Lihat peta</button>
         </div>
       </aside>
     </main>
@@ -205,8 +215,8 @@
   <dialog id="track-dialog" aria-labelledby="track-title">
     <div class="track-header">
       <div>
-        <h2 id="track-title">Silverstone</h2>
-        <p>Grand Prix Circuit <span aria-hidden="true">/</span> 5,891 km <span aria-hidden="true">/</span> 18 tikungan</p>
+        <h2 id="track-title">Peta sirkuit</h2>
+        <p id="track-stats"></p>
       </div>
       <div class="track-actions">
         <button id="track-zoom" class="button secondary" type="button" aria-controls="track-viewport">Perbesar</button>
@@ -214,10 +224,11 @@
       </div>
     </div>
     <div id="track-viewport" class="track-viewport" tabindex="0" role="region" aria-label="Peta sirkuit">
-      <img id="track-image" width="1200" height="720" alt="Lintasan Silverstone Grand Prix dengan nomor tikungan 1–18, start dan finish, serta pit lane">
+      <img id="track-image" width="1200" height="720" alt="">
     </div>
     <ul class="track-legend" aria-label="Legenda peta">
-      <li>Lintasan utama</li><li>Start / finish</li><li>Pit lane</li>
+      <li>Lintasan utama</li><li id="track-start-legend">Start / finish</li><li>Pit lane</li>
+      <li id="track-control-legend" hidden>Garis kontrol (finish)</li>
     </ul>
   </dialog>
 </body>

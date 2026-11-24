@@ -1,5 +1,6 @@
 """Synthetic session cards and the reproducible SetupVault evaluation protocol."""
 
+import argparse
 import io
 import json
 import math
@@ -14,32 +15,46 @@ import numpy as np
 from PIL import Image
 from scipy.ndimage import gaussian_filter
 
-from silverstone import CIRCUIT_NAME, session_card
+from circuits import CIRCUITS, DEFAULT_CIRCUIT, session_card
 from vault import OVERHEAD, VaultError, backup, encode_png, read_png, restore
 
 SIZES = (100, 500, 1024, 2048, 4096, 8192, 16_384, 32_768, 49_152, 65_536)
 PAIRS = tuple(combinations(range(3), 2))
 REPEATS = 5
-@lru_cache(maxsize=1)
-def demo_material():
+SETUPS = {
+    "silverstone": {
+        "front_ride_height_mm": 33,
+        "rear_ride_height_mm": 56,
+        "front_spring_n_per_mm": 140,
+        "rear_spring_n_per_mm": 125,
+        "brake_bias_front_pct": 56.5,
+        "tire_pressure_kpa": {"front": 180, "rear": 175},
+    },
+    "monza": {
+        "front_ride_height_mm": 31,
+        "rear_ride_height_mm": 50,
+        "front_spring_n_per_mm": 135,
+        "rear_spring_n_per_mm": 120,
+        "brake_bias_front_pct": 57.5,
+        "tire_pressure_kpa": {"front": 178, "rear": 174},
+    },
+}
+
+
+@lru_cache(maxsize=len(CIRCUITS))
+def demo_material(circuit_id=DEFAULT_CIRCUIT):
+    circuit = CIRCUITS[circuit_id]
     config = {
-        "session": "SIM-03",
-        "version": 2,
+        "session": circuit.session,
+        "version": circuit.version,
         "vehicle": "SV-17",
-        "circuit": CIRCUIT_NAME,
-        "conditions": {"track": "kering", "ambient_c": 28},
-        "setup": {
-            "front_ride_height_mm": 33,
-            "rear_ride_height_mm": 56,
-            "front_spring_n_per_mm": 140,
-            "rear_spring_n_per_mm": 125,
-            "brake_bias_front_pct": 56.5,
-            "tire_pressure_kpa": {"front": 180, "rear": 175},
-        },
+        "circuit": circuit.name,
+        "conditions": {"track": "kering", "ambient_c": circuit.ambient_c},
+        "setup": SETUPS[circuit_id],
     }
     data = (json.dumps(config, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
     covers = tuple(
-        session_card(*spec)
+        session_card(circuit, *spec)
         for spec in [("A", "Engineer"), ("B", "Kru"), ("C", "Arsip")]
     )
     return data, covers
@@ -103,8 +118,8 @@ def rejection_cases(source, covers, cards):
     return results
 
 
-def evaluate():
-    demo, sample_covers = demo_material()
+def evaluate(circuit_id=DEFAULT_CIRCUIT):
+    demo, sample_covers = demo_material(circuit_id)
     covers = [read_png(cover) for cover in sample_covers]
     originals = [cover.astype(np.float64) for cover in covers]
     rows = []
@@ -153,4 +168,6 @@ def evaluate():
 
 
 if __name__ == "__main__":
-    print(json.dumps(evaluate(), ensure_ascii=True, indent=2))
+    parser = argparse.ArgumentParser(description="Evaluasi sampul sirkuit SetupVault.")
+    parser.add_argument("--circuit", choices=CIRCUITS, default=DEFAULT_CIRCUIT)
+    print(json.dumps(evaluate(parser.parse_args().circuit), ensure_ascii=True, indent=2))
